@@ -44,15 +44,15 @@ public class PeriodicCoordinator {
                     } else {
                         GetTransactionsToApproveResponse x = api.getTransactionsToApprove(depth);
                         String trunkTransaction = x.getTrunkTransaction();
-                        String branchTransaction = latestSolidSubtangleMilestone;
+                        String branchTransaction = x.getBranchTransaction();
                         String trunkReason = "default";
                         String branchReason = "default";
 
                         // validate remaining tips
                         String[] tips = api.getTips().getHashes();
                         if (tips.length > 0) {
-                            trunkTransaction = tips[0];
-                            trunkReason = "tip";
+                            branchTransaction = tips[0];
+                            branchReason = "tip";
                         }
 
                         // find transaction with reference
@@ -62,8 +62,8 @@ public class PeriodicCoordinator {
 
                             for (int i = 0; i < inclusionStates.length; i++) {
                                 if (inclusionStates[i] == false) {
-                                    trunkTransaction = transactionHashes[i];
-                                    trunkReason = "tag";
+                                    branchTransaction = transactionHashes[i];
+                                    branchReason = "tag";
                                 }
                             }
                         }
