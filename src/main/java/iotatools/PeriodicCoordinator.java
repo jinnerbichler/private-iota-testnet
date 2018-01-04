@@ -1,16 +1,10 @@
 package iotatools;
 
 import jota.IotaAPI;
-import jota.dto.response.FindTransactionResponse;
-import jota.dto.response.GetInclusionStateResponse;
 import jota.dto.response.GetNodeInfoResponse;
 import jota.dto.response.GetTransactionsToApproveResponse;
-import jota.model.Transaction;
 import org.apache.commons.cli.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,13 +37,14 @@ public class PeriodicCoordinator {
             public void run() {
                 try {
                     GetNodeInfoResponse nodeInfo = api.getNodeInfo();
+                    String latestSolidSubtangleMilestone = nodeInfo.getLatestSolidSubtangleMilestone();
                     int updatedMilestone = nodeInfo.getLatestMilestoneIndex() + 1;
                     if (nodeInfo.getLatestMilestone().equals(NULL_HASH)) {
                         newMilestone(api, NULL_HASH, NULL_HASH, updatedMilestone);
                     } else {
                         GetTransactionsToApproveResponse x = api.getTransactionsToApprove(depth);
                         String trunkTransaction = x.getTrunkTransaction();
-                        String branchTransaction = x.getBranchTransaction();
+                        String branchTransaction = latestSolidSubtangleMilestone;
                         String trunkReason = "default";
                         String branchReason = "default";
 
@@ -59,39 +54,26 @@ public class PeriodicCoordinator {
                             trunkTransaction = tips[0];
                             trunkReason = "tip";
                         }
-                        if (tips.length > 1) {
-                            branchTransaction = tips[1];
-                            branchReason = "tip";
-                        }
 
                         // find transaction with reference
                         if (referenceTag != null) {
                             String[] transactionHashes = api.findTransactions(null, new String[]{referenceTag}, null, null).getHashes();
                             boolean[] inclusionStates = api.getLatestInclusion(transactionHashes).getStates();
 
-                            Boolean isTrunkSet = false;
                             for (int i = 0; i < inclusionStates.length; i++) {
                                 if (inclusionStates[i] == false) {
-                                    if(isTrunkSet == false) {
-                                        trunkTransaction = transactionHashes[i];
-                                        trunkReason = "tag";
-                                        isTrunkSet = true;
-                                    } else {
-                                        branchTransaction = transactionHashes[i];
-                                        branchReason = "tag";
-                                        break;
-                                    }
+                                    trunkTransaction = transactionHashes[i];
+                                    trunkReason = "tag";
                                 }
                             }
                         }
 
                         // check if milestone is necessary
-                        String latestSolidSubtangleMilestone = nodeInfo.getLatestSolidSubtangleMilestone();
                         if ((branchTransaction.equals(trunkTransaction)) && trunkTransaction.equals(latestSolidSubtangleMilestone)) {
                             logger.info("Skipping milestone");
                         } else {
                             newMilestone(api, trunkTransaction, branchTransaction, updatedMilestone);
-                            logger.info(String.format("New milestone. Approved trunk:%s (reason:%s), branch:%s (reason:%s)",
+                            logger.info(String.format("New milestone. Approved trunk: %s (reason: %s), branch: %s (reason: %s)",
                                     trunkTransaction, trunkReason, branchTransaction, branchReason));
                         }
                     }
