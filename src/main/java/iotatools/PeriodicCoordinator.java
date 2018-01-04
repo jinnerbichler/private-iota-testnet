@@ -50,16 +50,18 @@ public class PeriodicCoordinator {
                         GetTransactionsToApproveResponse x = api.getTransactionsToApprove(depth);
                         String trunkTransaction = x.getTrunkTransaction();
                         String branchTransaction = x.getBranchTransaction();
+                        String trunkReason = "default";
+                        String branchReason = "default";
 
                         // validate remaining tips
                         String[] tips = api.getTips().getHashes();
                         if (tips.length > 0) {
                             trunkTransaction = tips[0];
-                            logger.info("Approving Tip -> trunk: " + trunkTransaction);
+                            trunkReason = "tip";
                         }
                         if (tips.length > 1) {
                             branchTransaction = tips[1];
-                            logger.info("Approving Tip -> branch: " + branchTransaction);
+                            branchReason = "tip";
                         }
 
                         // find transaction with reference
@@ -72,22 +74,27 @@ public class PeriodicCoordinator {
                                 if (inclusionStates[i] == false) {
                                     if(isTrunkSet == false) {
                                         trunkTransaction = transactionHashes[i];
-                                        logger.info("Approving trunk: " + trunkTransaction + " with tag: " + referenceTag);
+                                        trunkReason = "tag";
                                         isTrunkSet = true;
-                                    }
-                                    else {
+                                    } else {
                                         branchTransaction = transactionHashes[i];
-                                        logger.info("Approving branch: " + branchTransaction + " with tag: " + referenceTag);
+                                        branchReason = "tag";
                                         break;
                                     }
                                 }
                             }
                         }
 
-                        newMilestone(api, trunkTransaction, branchTransaction, updatedMilestone);
-                        logger.info("Approved trunk:" + trunkTransaction + ", branch: " + branchTransaction);
+                        // check if milestone is necessary
+                        String latestSolidSubtangleMilestone = nodeInfo.getLatestSolidSubtangleMilestone();
+                        if ((branchTransaction.equals(trunkTransaction)) && trunkTransaction.equals(latestSolidSubtangleMilestone)) {
+                            logger.info("Skipping milestone");
+                        } else {
+                            newMilestone(api, trunkTransaction, branchTransaction, updatedMilestone);
+                            logger.info(String.format("New milestone. Approved trunk:%s (reason:%s), branch:%s (reason:%s)",
+                                    trunkTransaction, trunkReason, branchTransaction, branchReason));
+                        }
                     }
-                    logger.info("New milestone " + updatedMilestone + " created.");
                 }
                 catch (Exception e) {
                     logger.log(Level.SEVERE, e.getLocalizedMessage(), e);
