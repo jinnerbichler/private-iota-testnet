@@ -3,8 +3,10 @@ package iotatools;
 import jota.IotaAPI;
 import jota.dto.response.GetNodeInfoResponse;
 import jota.dto.response.GetTransactionsToApproveResponse;
+import jota.model.Transaction;
 import org.apache.commons.cli.*;
 
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -42,15 +44,24 @@ public class PeriodicCoordinator {
                     if (nodeInfo.getLatestMilestone().equals(NULL_HASH)) {
                         newMilestone(api, NULL_HASH, NULL_HASH, updatedMilestone);
                     } else {
-                        GetTransactionsToApproveResponse x = api.getTransactionsToApprove(depth);
-                        String trunkTransaction = x.getTrunkTransaction();
-                        String branchTransaction = x.getBranchTransaction();
+                        String trunkTransaction = latestSolidSubtangleMilestone;
+                        String branchTransaction = latestSolidSubtangleMilestone;
                         String trunkReason = "default";
                         String branchReason = "default";
 
+                        GetTransactionsToApproveResponse x = api.getTransactionsToApprove(depth);
+                        if( x != null ) {
+                            trunkTransaction = x.getTrunkTransaction();
+                            branchTransaction = x.getBranchTransaction();
+                            trunkReason = "approval";
+                            branchReason = "approval";
+                        }
+
                         // validate remaining tips
                         String[] tips = api.getTips().getHashes();
-                        if (tips.length > 0) {
+                        if( tips.length > 0 ) {
+//                            List<Transaction> bundle = api.getBundle(tips[0]).getTransactions();
+//                            branchTransaction = bundle.get(0).getHash();
                             branchTransaction = tips[0];
                             branchReason = "tip";
                         }
@@ -75,6 +86,9 @@ public class PeriodicCoordinator {
                             newMilestone(api, trunkTransaction, branchTransaction, updatedMilestone);
                             logger.info(String.format("New milestone. Approved trunk: %s (reason: %s), branch: %s (reason: %s)",
                                     trunkTransaction, trunkReason, branchTransaction, branchReason));
+
+                            // wait for milestone to propagate
+                            Thread.sleep(10000);
                         }
                     }
                 }
